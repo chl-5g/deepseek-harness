@@ -246,8 +246,8 @@ export class Session implements SessionFace {
   /**
    * Send (queue/steer passed through 1:1); failures land in the snapshot's promptError.
    * @param content - text, browser-owned temporary image uploads, and staged-file receipts.
-   * @param mode - queue appends after the current turn; steer inserts this
-   * prompt at the next step boundary while preserving older pending prompts.
+   * @param mode - queue appends after the current turn; steer cancels the
+   * current turn, clears older pending prompts, and starts this prompt next.
    * @param signal - optional caller cancellation for the complete admission round-trip.
    * @param requestId - identity from {@link beginSubmission}; a failed identified prompt retires its echo.
    * @returns the prompt result (also mirrored into promptError on failure).

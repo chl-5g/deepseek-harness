@@ -808,6 +808,7 @@ describe('sessions.prompt synchronous rejection', () => {
     const session = ctx.sessions.create(sid('session-empty-prompt'))
     const followup = vi.fn()
     const steer = vi.fn()
+    const cancel = vi.fn()
     await ctx.agents.register({
       id: session.id,
       session,
@@ -816,6 +817,7 @@ describe('sessions.prompt synchronous rejection', () => {
       ctx,
       followup,
       steer,
+      cancel,
     } as unknown as Agent)
     const savedImage = {
       attachmentId: 'accepted-image',
@@ -864,6 +866,7 @@ describe('sessions.prompt synchronous rejection', () => {
     }
     expect(followup).not.toHaveBeenCalled()
     expect(steer).not.toHaveBeenCalled()
+    expect(cancel).not.toHaveBeenCalled()
     expect(session.snapshotEvents()).toEqual(initialEvents)
 
     const queued = await remote.prompt(promptRequest({
@@ -887,7 +890,7 @@ describe('sessions.prompt synchronous rejection', () => {
     expect(followup).toHaveBeenCalledWith(expect.objectContaining({
       content: [{ type: 'text', text: ' queued ' }],
     }))
-    expect(steer).toHaveBeenCalledWith(expect.objectContaining({
+    expect(followup).toHaveBeenCalledWith(expect.objectContaining({
       content: [{ type: 'text', text: 'steered' }],
     }))
     expect(saveImages).toHaveBeenCalledOnce()
@@ -912,6 +915,7 @@ describe('sessions.prompt synchronous rejection', () => {
       ctx,
       followup: () => { throw new Error('agent "session-throwing" lifecycle disposed') },
       steer: () => { throw new Error('agent "session-throwing" lifecycle disposed') },
+      cancel: () => { throw new Error('agent "session-throwing" lifecycle disposed') },
     } as unknown as Agent)
     const remote = createSessionTestRemote(ctx, { defaultModelSelection: () => ({ provider: 'p', model: 'm' }), cwd: '/tmp' })
 

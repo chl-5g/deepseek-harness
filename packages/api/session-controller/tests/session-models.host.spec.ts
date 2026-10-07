@@ -248,9 +248,9 @@ describe('Web session model selection', () => {
       })),
     }
     ctx.provide('attachments', Object.setPrototypeOf(attachments, AttachmentStore.prototype) as never)
-    const steer = vi.fn()
+    const cancel = vi.fn()
     const followup = vi.fn()
-    Object.assign(agent, { steer, followup })
+    Object.assign(agent, { cancel, followup })
     const remote = createSessionTestRemote(ctx, {
       defaultModelSelection: () => ({ provider: 'deepseek-official', model: 'deepseek-chat' }),
       cwd: '/tmp',
@@ -265,7 +265,7 @@ describe('Web session model selection', () => {
       ],
     }))
     expect(result.ok).toBe(true)
-    expect((steer.mock.calls[0]?.[0] as UserMessage).content).toEqual([
+    expect((followup.mock.calls[0]?.[0] as UserMessage).content).toEqual([
       { type: 'text', text: 'look at this' },
       {
         type: 'image',

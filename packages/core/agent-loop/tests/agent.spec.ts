@@ -159,6 +159,36 @@ describe('Agent', () => {
     expect(agent.inbox.nextTurn).toHaveLength(0)
   })
 
+  it('cancel-and-replace drops stale queued work and starts the replacement', async () => {
+    const adapter = new MockAdapter(['hang', textResponse('replacement reply')])
+    const ctx = await harness(adapter)
+    const started = Promise.withResolvers<undefined>()
+    ctx.on('agent/assistant-stream', ({ frame }) => {
+      if (frame.type === 'chunk' && frame.chunk.type === 'text-delta') started.resolve(undefined)
+    })
+    const agent = await ctx.agentLoop.create(SessionId('interrupt-running'), { provider: 'mock', model: 'mock' })
+
+    send(agent, 'active prompt')
+    await started.promise
+    send(agent, 'stale queued prompt')
+    agent.cancel({ kind: 'user' })
+    agent.followup(createUserMessage({ content: [{ type: 'text', text: 'replacement prompt' }], source: { kind: 'user' } }))
+    await agent.whenIdle()
+
+    expect(adapter.requests).toHaveLength(2)
+    expect(agent.session.snapshotEvents()
+      .filter(event => event.type === 'user/message')
+      .flatMap(event => event.type === 'user/message' ? event.data.content : [])
+      .flatMap(block => block.type === 'text' ? [block.text] : []))
+      .toEqual(['active prompt', 'replacement prompt'])
+    expect(agent.inbox.nextTurn).toHaveLength(0)
+    expect(agent.inbox.nextStep).toHaveLength(0)
+    expect(agent.session.snapshotEvents().some(event => event.type === 'assistant/message' && event.data.interrupted)).toBe(true)
+    expect(agent.session.snapshotEvents().filter(event => event.type === 'turn/end')
+      .map(event => event.type === 'turn/end' ? event.data.reason.kind : undefined))
+      .toEqual(['aborted', 'completed'])
+  })
+
   it('emits one running and idle transition for one completed turn', async () => {
     const ctx = await harness(new MockAdapter([textResponse('ok')]))
     const agent = await ctx.agentLoop.create(SessionId('a1'), { provider: 'mock', model: 'mock' })

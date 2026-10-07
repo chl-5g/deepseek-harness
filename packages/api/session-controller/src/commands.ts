@@ -361,7 +361,7 @@ export class SessionCommandController {
           )
         }
         using binding = this.ctx.fileUploads.bindPrompt(agent, admission.receiptIds, request.requestId)
-        if (request.mode === 'steer') agent.steer(message)
+        if (request.mode === 'steer') this.interrupt(agent, message)
         else agent.followup(message)
         binding.commit()
       } catch (error) {
@@ -522,6 +522,22 @@ export class SessionCommandController {
     }
     agent.cancel({ kind: 'user' }, { keepInbox: true })
     return { accepted: true }
+  }
+
+  /**
+   * Replace the active turn with one prompt, retiring every older pending
+   * prompt's file receipt after the Agent durably clears its inbox.
+   */
+  private interrupt(agent: Agent, message: UserMessage): void {
+    const pending = [...agent.inbox.nextStep, ...agent.inbox.nextTurn]
+    agent.cancel({ kind: 'user' })
+    agent.followup(message)
+    for (const queued of pending) {
+      const source = queued.source
+      if (source.kind === 'user' && 'rpcId' in source) {
+        this.ctx.fileUploads.retirePrompt(agent, source.rpcId)
+      }
+    }
   }
 
   private async resolveAgent(sessionId: SessionId): Promise<Agent> {

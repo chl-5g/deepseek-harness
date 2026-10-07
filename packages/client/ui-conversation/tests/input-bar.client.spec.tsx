@@ -242,7 +242,7 @@ function bench(over?: BenchOptions) {
   const primaryLabel = primaryStops
     ? '停止生成'
     : over?.running === true && steeringAvailable && !composerLocked && plainMessageDraft
-      ? (over.busyEnter === 'steer' ? '插话发送' : '排队发送')
+      ? (over.busyEnter === 'steer' ? '中断并发送' : '排队发送')
       : '发送消息'
   const button = view.container.querySelector<HTMLButtonElement>(`button[aria-label="${primaryLabel}"]`)!
   const interruptButton = view.container.querySelector<HTMLButtonElement>('button[aria-label="停止生成"]')
@@ -903,7 +903,7 @@ describe('running and lock semantics', () => {
 
   it('running Send follows the busy-state Steer preference and labels the delivery', () => {
     const { button, sink } = bench({ running: true, busyEnter: 'steer', draft: '按钮插话' })
-    expect(button.getAttribute('aria-label')).toBe('插话发送')
+    expect(button.getAttribute('aria-label')).toBe('中断并发送')
     fireEvent.click(button)
     expect(sink).toHaveBeenCalledWith('按钮插话', [], 'steer', expect.any(AbortSignal))
   })
@@ -912,7 +912,7 @@ describe('running and lock semantics', () => {
     const { button, busyEnter, sink } = bench({ running: true, draft: '跟随设置' })
     expect(button.getAttribute('aria-label')).toBe('排队发送')
     act(() => { busyEnter.set('steer') })
-    expect(button.getAttribute('aria-label')).toBe('插话发送')
+    expect(button.getAttribute('aria-label')).toBe('中断并发送')
     fireEvent.click(button)
     expect(sink).toHaveBeenCalledWith('跟随设置', [], 'steer', expect.any(AbortSignal))
   })
@@ -935,7 +935,7 @@ describe('running and lock semantics', () => {
     expect(claimed.shell.snapshot.phase).toBe('claimed')
     const button = claimed.view.container.querySelector<HTMLButtonElement>('button[aria-label="发送消息"]')
     expect(button).not.toBeNull()
-    expect(claimed.view.container.querySelector('button[aria-label="插话发送"]')).toBeNull()
+    expect(claimed.view.container.querySelector('button[aria-label="中断并发送"]')).toBeNull()
   })
 
   it('running Send keeps the plain label while a file upload is still pending', () => {
@@ -959,7 +959,7 @@ describe('running and lock semantics', () => {
       running: true, busyEnter: 'steer', draft: '带附件', attachments: [file],
       fileUploads: { [file.id]: { status: 'ready', receiptId: 'receipt-1' as never, file: { kind: 'file' } as never } },
     })
-    expect(ready.button.getAttribute('aria-label')).toBe('插话发送')
+    expect(ready.button.getAttribute('aria-label')).toBe('中断并发送')
     expect(ready.button.disabled).toBe(false)
   })
 
@@ -1056,7 +1056,7 @@ describe('running and lock semantics', () => {
       parentAvailable: true,
     }
     const { button, sink } = bench({ running: true, busyEnter: 'steer', draft: '子代理插话', subagent })
-    expect(button.getAttribute('aria-label')).toBe('插话发送')
+    expect(button.getAttribute('aria-label')).toBe('中断并发送')
     fireEvent.click(button)
     expect(sink).toHaveBeenCalledWith('子代理插话', [], 'steer', expect.any(AbortSignal))
 

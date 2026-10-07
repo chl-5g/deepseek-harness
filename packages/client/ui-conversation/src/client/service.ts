@@ -222,7 +222,8 @@ export class ConversationController extends Service implements IConversation {
    * @param session - target session.
    * @param text - serialized prompt text.
    * @param attachmentIds - ordered draft-local attachment ids.
-   * @param mode - queue or steer delivery selected by composer policy.
+   * @param mode - queue or steer delivery selected by composer policy; steer
+   * cancels the active turn and starts this prompt next.
    * @param signal - optional cancellation for the complete Host admission.
    * @returns the Host admission outcome; local attachment preparation failures reject.
    */
