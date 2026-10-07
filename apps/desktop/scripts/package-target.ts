@@ -234,7 +234,7 @@ export function parseDesktopPackageInvocation(
   })
   if (positionals.length > 1) throw new Error('desktop package: expected at most one target')
   const name = positionals[0] ?? hostTargetName(hostPlatform, hostArch)
-  if (values.unsigned && name !== 'win-x64') throw new Error('desktop package: --unsigned requires win-x64')
+  if (values.unsigned && name !== 'win-x64' && name !== 'mac-arm64') throw new Error('desktop package: --unsigned requires win-x64 or mac-arm64')
   if (values.unsigned && values['prepare-only']) throw new Error('desktop package: --unsigned cannot use --prepare-only')
   const requestedBuildVersion = values['build-version']?.trim()
   if (values['build-version'] !== undefined && (requestedBuildVersion === undefined || requestedBuildVersion === '')) {
@@ -287,7 +287,9 @@ function runPnpm(
   cwd: string = APP_ROOT,
   run?: ReturnType<typeof createPackagingRun>,
 ): Promise<void> {
-  const pnpmEntry = process.env.npm_execpath
+  // npm_execpath can point at pnpm's native Mach-O launcher. This script invokes
+  // the package manager through Node, so use the repository's JS entry explicitly.
+  const pnpmEntry = join(REPOSITORY_ROOT, 'node_modules', 'pnpm', 'bin', 'pnpm.cjs')
   if (pnpmEntry === undefined || pnpmEntry === '') {
     throw new Error('desktop package: invoke this script through a pnpm package command')
   }
@@ -366,8 +368,9 @@ async function main(): Promise<void> {
       recordPackagingEvent(run.directory, { type: 'macos-settings', packConcurrency: settings.packConcurrency,
         downloadProxyConfigured: settings.downloadProxy !== undefined,
         notarizationProxyConfigured: settings.notarizationProxy !== undefined })
-      await packagingStep(run.directory, 'macos-package', () => withMacOSSigningKeychain(environment,
-        signingEnvironment => packageTarget(invocation, signingEnvironment, run)), secrets)
+      await packagingStep(run.directory, 'macos-package', () => invocation.unsigned
+        ? packageTarget(invocation, environment, run)
+        : withMacOSSigningKeychain(environment, signingEnvironment => packageTarget(invocation, signingEnvironment, run)), secrets)
     } else {
       await packagingStep(run.directory, 'windows-package', () => packageTarget(invocation, environment, run), secrets)
     }
@@ -412,6 +415,7 @@ export async function packageTarget(
     ...buildEnv,
     DSH_DESKTOP_TARGET_PLATFORM: target.platform,
     DSH_DESKTOP_TARGET_ARCH: target.arch,
+    DSH_DESKTOP_UNSIGNED: invocation.unsigned ? '1' : '0',
   }
   const downloadEnv = macOSDownloadEnvironment(targetEnv, mac?.downloadProxy)
   const electronBuilderEnv = desktopElectronBuilderEnvironment(downloadEnv, invocation.unsigned)
