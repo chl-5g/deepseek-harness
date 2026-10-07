@@ -9,8 +9,8 @@ import type { MessageSource } from '@deepseek-ai/dsh-llm'
 import type { ContextFormed } from '@deepseek-ai/dsh-llm'
 import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
-import ToolRuntime from '@deepseek-ai/dsh-tools'
-import { MockAdapter, textResponse } from './mock-adapter.ts'
+import ToolRuntime, { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
+import { MockAdapter, textResponse, toolCallResponse } from './mock-adapter.ts'
 
 declare module '@deepseek-ai/dsh-llm' {
   interface MessageSourceMap {
@@ -120,6 +120,43 @@ describe('Agent', () => {
 
     expect(agent.session.snapshotEvents().some(event => event.type === 'user/message')).toBe(true)
     expect(adapter.requests).toHaveLength(1)
+  })
+
+  it('steer() during a tool call enters the current turn and preserves queued turns', async () => {
+    const toolStarted = Promise.withResolvers<undefined>()
+    const releaseTool = Promise.withResolvers<undefined>()
+    const adapter = new MockAdapter([
+      toolCallResponse('hold-1', 'hold', {}),
+      textResponse('steered reply'),
+      textResponse('queued reply'),
+    ])
+    const ctx = await harness(adapter)
+    ctx.tools.register(defineContentToolFixture({
+      name: 'hold',
+      description: 'holds the current step until steering is submitted',
+      parameters: {},
+      async execute() {
+        toolStarted.resolve(undefined)
+        await releaseTool.promise
+        return [{ type: 'text', text: 'released' }]
+      },
+    }))
+    const agent = await ctx.agentLoop.create(SessionId('steer-running'), { provider: 'mock', model: 'mock' })
+
+    send(agent, 'active prompt')
+    await toolStarted.promise
+    send(agent, 'queued prompt')
+    agent.steer(createUserMessage({ content: [{ type: 'text', text: 'steer prompt' }], source: { kind: 'user' } }))
+    releaseTool.resolve(undefined)
+    await agent.whenIdle()
+
+    expect(adapter.requests).toHaveLength(3)
+    expect(agent.session.snapshotEvents()
+      .filter(event => event.type === 'user/message')
+      .flatMap(event => event.type === 'user/message' ? event.data.content : [])
+      .flatMap(block => block.type === 'text' ? [block.text] : []))
+      .toEqual(['active prompt', 'steer prompt', 'queued prompt'])
+    expect(agent.inbox.nextTurn).toHaveLength(0)
   })
 
   it('emits one running and idle transition for one completed turn', async () => {
